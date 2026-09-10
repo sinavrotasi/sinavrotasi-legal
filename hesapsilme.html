@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hesap Silme — SınavRotası</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f5f7fb;margin:0;color:#3b4657}
+  .shell{max-width:560px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;color:#10213f;margin:0 0 4px}
+  .sub{font-size:13px;color:#8a93a6;margin:0 0 24px}
+  h2{font-size:15px;color:#10213f;margin:28px 0 8px}
+  p,li{font-size:14px;line-height:1.7}
+  ul{padding-left:18px;margin:0 0 12px}
+  .box{background:#fff;border:1px solid #e7ebf1;border-radius:12px;padding:20px;margin-top:16px}
+  input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid #d7dde6;font-size:14px;margin-bottom:12px}
+  button{width:100%;padding:14px;border-radius:10px;border:none;background:#c0392b;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .msg{margin-top:14px;font-size:13px;padding:12px 14px;border-radius:10px;display:none}
+  .msg.ok{background:#e8f5e9;color:#1e7d32;display:block}
+  .msg.err{background:#fdecec;color:#b5253c;display:block}
+  .warn{background:#fff4e6;border:1px solid #f6d9a8;color:#7a5310;border-radius:12px;padding:12px 14px;font-size:13px;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <h1>SınavRotası — Hesap Silme</h1>
+  <p class="sub">SınavRotası (Sait Yıldırım) tarafından sunulmaktadır.</p>
+
+  <h2>Ne siliniyor?</h2>
+  <ul>
+    <li>Hesap bilgileriniz (e-posta, şifre, hedef kadro seçimi)</li>
+    <li>Çalışma ve ilerleme verileriniz (soru istatistikleri, kart tekrar durumu, günlük hedef ilerlemesi)</li>
+    <li>Premium abonelik/satın alma doğrulama kayıtlarınız</li>
+  </ul>
+  <p>Silme işlemi <strong>kalıcıdır ve geri alınamaz</strong>. İşlem tamamlandığında verileriniz sistemden derhal kaldırılır; yasal saklama yükümlülüğümüz bulunan kayıtlar (ör. muhasebe/vergi mevzuatı gereği tutulması zorunlu satın alma kayıtları, varsa) ilgili mevzuatta öngörülen süre kadar ayrıca saklanabilir.</p>
+
+  <h2>Nasıl silinir?</h2>
+  <p>Aşağıya hesabınızla ilişkili e-posta adresini girip giriş yaparak hesabınızı hemen silebilirsiniz. Uygulamayı hâlâ kullanıyorsanız aynı işlemi uygulama içinden <strong>Profil → Hesabımı silmek istiyorum</strong> yoluyla da yapabilirsiniz.</p>
+
+  <div class="box">
+    <input type="email" id="email" placeholder="E-posta adresiniz" autocomplete="email">
+    <input type="password" id="password" placeholder="Şifreniz" autocomplete="current-password">
+    <button id="deleteBtn" type="button">Hesabımı Kalıcı Olarak Sil</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="warn">Bu işlem geri alınamaz. Devam etmeden önce emin olun.</div>
+
+  <h2>Sorun mu yaşıyorsunuz?</h2>
+  <p>Giriş bilgilerinizi hatırlamıyorsanız veya bu sayfa üzerinden işlem yapamıyorsanız <strong>bilgi.sinavrotasi@gmail.com</strong> adresine hesabınızla ilişkili e-postayı belirterek yazın; talebiniz en geç 30 gün içinde işleme alınır.</p>
+</div>
+
+<script src="https://esm.sh/@supabase/supabase-js@2" type="module"></script>
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  const SUPABASE_URL = 'https://zrlsllbgqrllwgjyqbfv.supabase.co';
+  // Bu, herkese açık (public) bir anon key'dir — istemci tarafı kullanım için
+  // tasarlanmıştır ve tek başına yetki vermez, RLS ile korunur.
+  const SUPABASE_ANON_KEY = 'sb_publishable_9BNNjJTjh9AfWQsxM27BiQ_1KfT0x7C';
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const btn = document.getElementById('deleteBtn');
+  const msg = document.getElementById('msg');
+
+  function showMsg(text, ok) {
+    msg.textContent = text;
+    msg.className = 'msg ' + (ok ? 'ok' : 'err');
+  }
+
+  btn.addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showMsg('E-posta ve şifrenizi girin.', false); return; }
+    if (!confirm('Hesabınız ve tüm verileriniz kalıcı olarak silinecek. Emin misiniz?')) return;
+
+    btn.disabled = true;
+    btn.textContent = 'İşleniyor…';
+    try {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError || !signInData?.session) throw new Error('E-posta veya şifre hatalı.');
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${signInData.session.access_token}`,
+        },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Hesap silinemedi.');
+
+      showMsg('Hesabınız ve tüm verileriniz başarıyla silindi.', true);
+      btn.remove();
+    } catch (err) {
+      showMsg(err.message || 'Bir hata oluştu, lütfen tekrar deneyin.', false);
+      btn.disabled = false;
+      btn.textContent = 'Hesabımı Kalıcı Olarak Sil';
+    }
+  });
+</script>
+</body>
+</html>
